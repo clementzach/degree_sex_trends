@@ -5,6 +5,7 @@ load("app_data.Rdata") #get the data
 
 
 library(shiny)
+library(ggplot2)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(tabsetPanel(
@@ -92,6 +93,7 @@ server <- function(input, output) {
                 y = only_field[, paste0(short_level, "_m")],
                 col = paste0(input$field_t, " (Men)")
             )) +
+            scale_color_discrete(type = c("steelblue", "mediumvioletred")) +
             labs(
                 title = paste0("Total degrees granted at ", degree_level(), " level"),
                 col = "",
@@ -99,6 +101,7 @@ server <- function(input, output) {
                 y = "Number of Degrees Granted",
                 caption = "Data Provided by NCES"
             ) +
+            theme_light() +
             theme(legend.position = "bottom") +
             guides(color = guide_legend(ncol = 2,
                                         byrow = TRUE))
@@ -133,6 +136,7 @@ server <- function(input, output) {
             #check if we need to update the mins/maaxes
             y_min = min(y_min, pct_female)
             y_max = max(y_max, pct_female)
+            x_min = min(x_min, min(only_field$year))
             
             
             #using the aes_ forces eager evaluation
@@ -154,6 +158,7 @@ server <- function(input, output) {
                 caption = "Data Provided by NCES"
             ) +
             xlim(x_min, x_max) +
+            theme_light() +
             ylim(y_min, y_max) +
             theme(legend.position = "bottom") +
             guides(color = guide_legend(ncol = 2,
