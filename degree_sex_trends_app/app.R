@@ -7,7 +7,7 @@ load("app_data.Rdata") #get the data
 library(shiny)
 library(ggplot2)
 
-# Define UI for application that draws a histogram
+
 ui <- fluidPage(tabsetPanel(
     tabPanel(
         "Percent Female",
@@ -61,7 +61,7 @@ ui <- fluidPage(tabsetPanel(
     )
 ))
 
-# Define server logic required to draw a histogram
+
 server <- function(input, output) {
     fields <- reactive({
         input$fields
