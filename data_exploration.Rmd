@@ -1,0 +1,243 @@
+---
+title: "Data Cleaning"
+author: "Zachary Clement"
+date: "12/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I'm using files downloaded from the (NCES)[https://nces.ed.gov/programs/digest/2019menu_tables.asp]
+
+First, let's see if we can extract the field of study from each excel sheet
+```{r}
+for (file in list.files('gender_excel_files')){
+  current_sex_df = readxl::read_xls(paste0('gender_excel_files/', file))
+  
+  id_string = colnames(current_sex_df)[1]
+  
+  start_removed = gsub(pattern = ".{1,} Degrees in ", x = id_string, replacement = '' )
+  end_removed = gsub(pattern = " conferred .{1,}" ,x= start_removed, replacement = '')
+  
+  print(end_removed)
+
+}
+```
+
+Now, let's see if the columns are consistent between sheets
+```{r}
+num_cols = c()
+for (file in list.files('gender_excel_files')){
+  current_sex_df = readxl::read_xls(paste0('gender_excel_files/', file))
+
+  num_cols = c(num_cols, dim(current_sex_df)[2])
+
+}
+print(num_cols)
+```
+
+Looks like the number of columns are not consistent between excel sheets. Let's look at which files are different 
+
+```{r}
+num_cols = c()
+for (file in list.files('gender_excel_files')){
+  current_sex_df = readxl::read_xls(paste0('gender_excel_files/', file))
+  print(file)
+  print(dim(current_sex_df)[2])
+
+
+}
+
+```
+
+Looks like I downloaded some files that I shouldn't have. I had assumed that all tables in that list were by sex, but some weren't. I'll delete those and try again. 
+
+```{r}
+num_cols = c()
+for (file in list.files('gender_excel_files')){
+  current_sex_df = readxl::read_xls(paste0('gender_excel_files/', file), skip = 4)
+  print(colnames(current_sex_df))
+  print(file)
+  print(dim(current_sex_df)[2])
+}
+
+```
+
+It looks like for some reason, we're imputing another column where not needed on those sheets. Let's just take the first 12 columns of these sheets and see how that looks. 
+
+```{r}
+colnames_sex_df = c("year", "bach_t", "bach_annual_pct_change",
+                    "bach_m", "bach_f", "bach_f_pct", "mast_t","mast_m",
+                    'mast_f', 'doct_t', 'doct_m', 'doct_f')
+
+rm("fields_by_sex") #remove before starting so we can re-run the chunk
+for (file in list.files('gender_excel_files')){
+  current_sex_df = readxl::read_xls(paste0('gender_excel_files/', file))
+  id_string = colnames(current_sex_df)[1]
+  current_sex_df = current_sex_df[-(1:4),1:12] #remove 13th col if exists, remove first 4 rows because they're just column descriptions
+  # get field name
+  colnames(current_sex_df) = colnames_sex_df 
+    start_removed = gsub(pattern = ".{1,} Degrees in ", x = id_string, replacement = '' )
+  end_removed = gsub(pattern = " conferred .{1,}" ,x= start_removed, replacement = '')
+  
+  
+  ## remove any useless rows from each df
+  keep_rows = grep(pattern = "^\\d{4}-\\d{2,} \\.{5,}$", current_sex_df$year)
+
+  current_sex_df = current_sex_df[keep_rows,]
+  
+  #add the field to each row
+  current_sex_df$field = end_removed
+  
+  current_sex_df$year = substr(current_sex_df$year, start = 1, stop = 4) |> as.numeric()
+ 
+  
+  if (exists("fields_by_sex")){
+    fields_by_sex = rbind(current_sex_df, fields_by_sex)
+  }
+  else {
+    fields_by_sex = current_sex_df
+  }
+}
+
+
+
+```
+
+Here, we will read in our table of yearly breakdown
+```{r}
+sex_overall <- read_xls('/Users/zacharyclement/degree_sex_trends/all_degrees_by_sex.xls', skip = 4)
+
+sex_overall <- sex_overall[,-c(7, 9, 11)]
+
+cols_overall <- c("year", "assoc_t", "assoc_m", "assoc_f", "assoc_pct_f", "bach_t",
+                  "bach_m", "bach_f", "bach_pct_f", "mast_t","mast_m",
+                    'mast_f', 'mast_pct_f', 'doct_t', 'doct_m', 'doct_f', 
+                  'doct_pct_f')
+
+colnames(sex_overall) <- cols_overall
+
+keep_rows <- grep(pattern = "^\\d{4}-\\d{2,}$", sex_overall$year) #this gets rid of the projected years, but that's okay
+
+
+
+sex_overall <- sex_overall[keep_rows,]
+
+sex_overall$year = substr(sex_overall$year, start = 0, stop = 4) 
+
+
+
+```
+
+
+
+Now, let's make some graphs:
+
+```{r}
+library(ggplot2)
+
+sex_overall <- lapply(sex_overall, as.numeric) |> data.frame()
+
+temp_field <- fields_by_sex$field
+fields_by_sex <- lapply(fields_by_sex, as.numeric) |> data.frame()
+fields_by_sex$field = temp_field
+
+ggplot() + 
+  geom_line(aes(x = sex_overall$year, 
+                y = sex_overall$bach_pct_f, 
+                col = "Bachelor's")) +
+  geom_line(aes(x = sex_overall$year, 
+                y = sex_overall$doct_pct_f, 
+                col = "Doctor's")) +
+  geom_line(aes(x = sex_overall$year, 
+                y = sex_overall$mast_pct_f, 
+                col = "Master's")) +
+  labs(x = "Year", y = "Percent Female", col = '') + 
+  geom_hline(mapping = aes(col = "50/50", yintercept = 50))
+
+```
+
+
+```{r}
+ggplot() + 
+  geom_line(aes(x = sex_overall$year, 
+                y = sex_overall$bach_t, 
+                col = "Bachelor's")) +
+  geom_line(aes(x = sex_overall$year, 
+                y = sex_overall$doct_t, 
+                col = "Doctor's")) +
+  geom_line(aes(x = sex_overall$year, 
+                y = sex_overall$mast_t, 
+                col = "Master's")) +
+  labs(x = "Year", y = "Degrees Awarded", col = '', title = "Number of total degrees awarded")
+```
+
+
+
+```{r}
+unique(fields_by_sex$field)
+```
+
+Let's define a function to look at the trends in one field
+
+```{r}
+
+plot_by_field <- function(field, level){
+  only_field <- fields_by_sex[fields_by_sex$field == field,]
+  
+  pct_female <- only_field[, paste0(level, "_f")] / only_field[, paste0(level, "_t")] 
+  ggplot() + 
+    geom_line(aes(x = only_field$year, y = pct_female )) +
+    labs(title = paste0("Percent Female Degrees at ", level, " level in ", field),
+         x = "Year", 
+         y = "Percent Female")
+}
+
+plot_by_field("business", "doct")
+
+
+```
+
+Now, let's expand that to look at multiple fields
+```{r}
+plot_by_field <- function(fields, level){
+  short_level = tolower(level) |> substr(start = 0, stop = 4)
+  
+  
+  x_min = 3000 #initial values should never end up being the actual min
+  x_max = 0
+  y_min = 100
+  y_max = 0
+  
+  p <- ggplot()
+  
+  for (field in fields){
+    only_field <- fields_by_sex[fields_by_sex$field == field,]
+    
+    only_field <- only_field[order(only_field$year),] #should already be ordered but just in case
+  
+  pct_female <- only_field[, paste0(short_level, "_f")] / only_field[, paste0(short_level, "_t")]
+  #check if we need to update the mins/maaxes
+  y_min = min(y_min, pct_female)
+  y_max = max(y_max, pct_female)
+  x_min = min(x_min, only_field$year)
+  x_max = max(x_max, only_field$year)
+  
+  #using the aes_ forces eager evaluation
+    p <- p + geom_line(aes_(x = only_field$year, y = pct_female, col = field))
+  }
+   
+
+   p + labs(title = paste0("Percent Female Degrees at ", level, " level"),
+            col = "Field",
+         x = "Year", 
+         y = "Percent Female") + xlim(x_min, x_max) + ylim(y_min, y_max)
+}
+
+plot_by_field(c( "psychology", "business", 'agriculture and natural resources', 'architecture and related services', 'computer and information sciences'), "Doctor's")
+```
+
+
+
